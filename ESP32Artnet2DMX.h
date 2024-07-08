@@ -49,7 +49,6 @@ private:
 
   WiFiUDP       m_WiFiUDP;
 
-  // Config
   ConfigServer  m_ConfigServer;
 
   IPAddress     m_artnet_source_ipaddress;
@@ -57,4 +56,3 @@ private:
 };
 
 #endif
-

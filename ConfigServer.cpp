@@ -17,12 +17,10 @@ void ConfigServer::Init() {
 }
 
 void ConfigServer::ResetConfigToDefault() {
-  // Remove existing settings file.
   if( LittleFS.begin( false ) ) {
     LittleFS.remove( CONFIG_FILENAME );
   }
 
-  // Reset all config
   this->ResetWiFiToDefault();
   this->ResetESP32PinsToDefault();
   this->ResetArtnet2DMXToDefault();
@@ -31,7 +29,6 @@ void ConfigServer::ResetConfigToDefault() {
 void ConfigServer::ResetWiFiToDefault() {
   m_is_connected_to_wifi = false;
 
-  // No wifi setup on default, force AP
   m_wifi_ssid   = "";
   m_wifi_pass   = "";
   m_wifi_ip     = "";
@@ -39,17 +36,16 @@ void ConfigServer::ResetWiFiToDefault() {
 }
 
 void ConfigServer::ResetESP32PinsToDefault() {
-  // DMX settings
-  m_gpio_enable      = 21;  // Connect to DE & RE on MAX485.
-  m_gpio_transmit    = 33;  // Connected to DI on MAX485.
-  m_gpio_receive     = 38;  // Ensure pin is not connected to anything.
+  m_gpio_enable      = 21;
+  m_gpio_transmit    = 33;
+  m_gpio_receive     = 38;
 }
 
 void ConfigServer::ResetArtnet2DMXToDefault() {
-  m_artnet_source_ip       = "255.255.255.255";  // Any IP source is fine.
-  m_artnet_universe        = 1;                  // Universe to listen for, all other universes are ignored.
-  m_artnet_timeout_ms      = 3000;               // Artnet timeout
-  m_dmx_update_interval_ms = 23;                 // Roughly 4hz
+  m_artnet_source_ip       = "255.255.255.255";
+  m_artnet_universe        = 1;
+  m_artnet_timeout_ms      = 3000;
+  m_dmx_update_interval_ms = 23;
 }
 
 void ConfigServer::SettingsSave() {
@@ -66,7 +62,6 @@ void ConfigServer::SettingsSave() {
   doc[ "artnet_timeout_ms" ]      = m_artnet_timeout_ms;
   doc[ "dmx_update_interval_ms" ] = m_dmx_update_interval_ms;
 
-  // Start LittleFS
   if( !LittleFS.begin( false ) ) {
     Serial.println( "LittleFS failed.  Attempting format." );
     if( !LittleFS.begin( true ) ) {
@@ -86,7 +81,6 @@ void ConfigServer::SettingsSave() {
 
 bool ConfigServer::SettingsLoad() {
   if( !LittleFS.begin( false ) ) {
-    // Failed to start LittleFS, probably no save.
     Serial.println( "Failed to start LittleFS" );
     return false;
   }
@@ -95,7 +89,6 @@ bool ConfigServer::SettingsLoad() {
   File config_file = LittleFS.open( CONFIG_FILENAME, "r" );
 
   if( !config_file ) {
-    // File not exist.
     Serial.println( "Failed to load file" );
     return false;
   }
@@ -114,7 +107,61 @@ bool ConfigServer::SettingsLoad() {
   m_artnet_universe        = doc[ "artnet_universe" ];
   m_artnet_timeout_ms      = doc[ "artnet_timeout_ms" ];
   m_dmx_update_interval_ms = doc[ "dmx_update_interval_ms" ];
+
+  LoadDMXRoutingConfigs();
+
   return true;
+}
+
+void ConfigServer::LoadDMXRoutingConfigs() {
+  DynamicJsonDocument doc(32768);
+  File config_file = LittleFS.open(CONFIG_FILENAME, "r");
+
+  if (config_file) {
+    deserializeJson(doc, config_file);
+    config_file.close();
+
+    JsonArray routing_configs = doc["dmx_routing_configs"].as<JsonArray>();
+    for (JsonObject routing_config : routing_configs) {
+      DMXRoutingConfig config;
+      config.input_channel = routing_config["input_channel"];
+      for (JsonVariant output_channel : routing_config["output_channels"].as<JsonArray>()) {
+        config.output_channels.push_back(output_channel.as<uint8_t>());
+      }
+      m_dmx_routing_configs.push_back(config);
+    }
+  }
+}
+
+void ConfigServer::SaveDMXRoutingConfigs() {
+  DynamicJsonDocument doc(32768);
+  JsonArray routing_configs = doc.createNestedArray("dmx_routing_configs");
+
+  for (const DMXRoutingConfig& config : m_dmx_routing_configs) {
+    JsonObject routing_config = routing_configs.createNestedObject();
+    routing_config["input_channel"] = config.input_channel;
+    JsonArray output_channels = routing_config.createNestedArray("output_channels");
+    for (uint8_t output_channel : config.output_channels) {
+      output_channels.add(output_channel);
+    }
+  }
+
+  File config_file = LittleFS.open(CONFIG_FILENAME, "w");
+  serializeJson(doc, config_file);
+  config_file.close();
+}
+
+void ConfigServer::AddDMXRoutingConfig(uint8_t input_channel, const std::vector<uint8_t>& output_channels) {
+  DMXRoutingConfig config;
+  config.input_channel = input_channel;
+  config.output_channels = output_channels;
+  m_dmx_routing_configs.push_back(config);
+  SaveDMXRoutingConfigs();
+}
+
+void ConfigServer::ClearDMXRoutingConfigs() {
+  m_dmx_routing_configs.clear();
+  SaveDMXRoutingConfigs();
 }
 
 void ConfigServer::StartWebServer( WebServer* ptr_WebServer ) {
@@ -149,14 +196,13 @@ bool ConfigServer::ConnectToWiFi() {
 
         WiFi.config( ip, ip, subnet );
       }
-      Serial.printf( "\nConnected to WiFi. IP = " );
+      Serial.printf( "\\nConnected to WiFi. IP = " );
       Serial.println( WiFi.localIP() );
       m_is_connected_to_wifi = true;
       return true;
     }
   }
 
-  // Ensure any old wifi ssid gets removed.
   m_wifi_ssid = "";
 
   Serial.println( "No config found or WiFi timeout." );
@@ -197,7 +243,6 @@ void ConfigServer::SendSetupMenuPage() {
   m_WebpageBuilder.StartCenter();
   m_WebpageBuilder.AddHeading( "Artnet2DMX Setup Page" );
 
-  // WiFi settings
   m_WebpageBuilder.AddBreak( 2 );
   m_WebpageBuilder.AddButtonActionForm( "settings_wifi", "WiFi" );
   m_WebpageBuilder.AddBreak( 2 );
@@ -205,7 +250,9 @@ void ConfigServer::SendSetupMenuPage() {
   m_WebpageBuilder.AddBreak( 2 );
   m_WebpageBuilder.AddButtonActionForm( "settings_artnet2dmx", "Art-Net 2 DMX" );
 
-  // Reset button
+  m_WebpageBuilder.AddBreak( 2 );
+  m_WebpageBuilder.AddButtonActionForm( "settings_dmx_routing", "DMX Routing" );
+
   m_WebpageBuilder.AddBreak( 2 );
   m_WebpageBuilder.AddButtonActionForm( "reset_all", "RESET ALL SETTINGS TO DEFAULT" );
 
@@ -225,7 +272,6 @@ void ConfigServer::SendWiFiSetupPage() {
   m_WebpageBuilder.StartCenter();
   m_WebpageBuilder.AddHeading( "WiFi Setup" );
 
-  // WiFi settings
   m_WebpageBuilder.AddText( mac_address );
   m_WebpageBuilder.AddBreak( 2 );
   m_WebpageBuilder.AddFormAction( "/setup_wifi", "POST" );
@@ -242,16 +288,13 @@ void ConfigServer::SendWiFiSetupPage() {
   m_WebpageBuilder.AddInputType( "text", "subnet", "subnet", "", String( "xxx.xxx.xxx.xxx" ), false );
   m_WebpageBuilder.AddBreak( 3 );
 
-  // Submit button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButton( "submit", "SUBMIT" );
   m_WebpageBuilder.EndFormAction();
 
-  // Cancel button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButtonActionForm( "/", "CANCEL" );
 
-  // Reset button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButtonActionForm( "reset_wifi", "RESET WiFi BACK TO HOTSPOT" );
 
@@ -271,7 +314,6 @@ void ConfigServer::SendESP32PinsSetupPage() {
   m_WebpageBuilder.StartCenter();
   m_WebpageBuilder.AddHeading( "ESP32 Pin Setup" );
 
-  // ESP32 & Art-Net settings
   m_WebpageBuilder.AddFormAction( "/setup_esp32pins", "POST" );
   m_WebpageBuilder.AddLabel( "gpio_enable", "GPIO - Enable : Connnect to DE & RE on MAX485." );
   m_WebpageBuilder.AddBreak( 1 );
@@ -285,16 +327,13 @@ void ConfigServer::SendESP32PinsSetupPage() {
   m_WebpageBuilder.AddBreak( 1 );
   m_WebpageBuilder.AddInputType( "number", "GPIO Receive", "gpio_receive", String( m_gpio_receive ), "", true );
 
-  // Submit button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButton( "submit", "SUBMIT" );
   m_WebpageBuilder.EndFormAction();
 
-  // Cancel button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButtonActionForm( "/", "CANCEL" );
 
-  // Reset button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButtonActionForm( "reset_esp32pins", "RESET ALL ESP32 PINS TO DEFAULT" );
 
@@ -330,16 +369,13 @@ void ConfigServer::SendArtnet2DMXSetupPage() {
   m_WebpageBuilder.AddBreak( 1 );
   m_WebpageBuilder.AddInputType( "number", "DMX update interval in ms", "dmx_update_ms", String( m_dmx_update_interval_ms ), "", true );
 
-  // Submit button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButton( "submit", "SUBMIT" );
   m_WebpageBuilder.EndFormAction();
 
-  // Cancel button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButtonActionForm( "/", "CANCEL" );
 
-  // Reset button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButtonActionForm( "reset_artnew2dmx", "RESET ALL ART-NET TO DMX SETTINGS TO DEFAULT" );
 
@@ -350,87 +386,189 @@ void ConfigServer::SendArtnet2DMXSetupPage() {
   m_ptr_WebServer->send( 200, "text/html", m_WebpageBuilder.m_html );
 }
 
-void ConfigServer::HandleWebServerData() {
-  bool handled = false;
-  
-  // Allow reset before anything else.
-  if( m_ptr_WebServer->uri() == String( "/reset_all" ) ) {
-    m_ptr_WebServer->send( 200, "text/plain", "Resetting everything to defaults - Reconnect to hotspot to setup WiFi." );
-    delay( 2000 );
-    // Maybe wipe FS here?
-    this->ResetConfigToDefault();
-    this->SettingsSave();
-    this->ConnectToWiFi();
-    return;
-  } else if( m_ptr_WebServer->uri() == String( "/reset_wifi" ) ) {
-    m_ptr_WebServer->send( 200, "text/plain", "Resetting to WiFi defaults - Reconnect to hotspot to setup WiFi." );
-    delay( 2000 );
-    this->ResetWiFiToDefault();
-    this->SettingsSave();
-    this->ConnectToWiFi();
-    return;
-  } else if( m_ptr_WebServer->uri() == String( "/reset_esp32pins" ) ) {
-    this->ResetESP32PinsToDefault();
-    this->SettingsSave();
-    this->SendESP32PinsSetupPage();
-    return;
-  } else if( m_ptr_WebServer->uri() == String( "/reset_artnew2dmx" ) ) {
-    this->ResetArtnet2DMXToDefault();
-    this->SettingsSave();
-    this->SendArtnet2DMXSetupPage();
-    return;
-  }
-
-  if( m_ptr_WebServer->method() == HTTP_GET ) {
-    // GET
-    handled = this->HandleWebGet();
-  } else {
-    // POST
-    handled = this->HandleWebPost();
-  }
-
-  if( !handled ) {
-    m_ptr_WebServer->send( 200, "text/plain", "Not found!" );
-  }
+void ConfigServer::SendDMXRoutingSetupPage() {
+  m_WebpageBuilder.AddDMXRoutingConfigTable(m_dmx_routing_configs);
+  m_ptr_WebServer->send(200, "text/html", m_WebpageBuilder.m_html);
 }
 
-bool ConfigServer::HandleWebGet() {
-  // Get starts with a /
+bool ConfigServer::HandleSetupDMXRouting() {
+  uint8_t input_channel = 0;
+  std::vector<uint8_t> output_channels;
 
-  if( m_ptr_WebServer->uri() == "/settings_wifi" ) {
+  for (int i = 0; i < m_ptr_WebServer->args(); i++) {
+    if (m_ptr_WebServer->argName(i) == "input_channel") {
+      input_channel = m_ptr_WebServer->arg(i).toInt();
+    } else if (m_ptr_WebServer->argName(i) == "output_channels") {
+      String output_channels_str = m_ptr_WebServer->arg(i);
+      int start = 0;
+      int end = output_channels_str.indexOf(',');
+      while (end != -1) {
+        output_channels.push_back(output_channels_str.substring(start, end).toInt());
+        start = end + 1;
+        end = output_channels_str.indexOf(',', start);
+      }
+      output_channels.push_back(output_channels_str.substring(start).toInt());
+    }
+  }
+
+  AddDMXRoutingConfig(input_channel, output_channels);
+  SendDMXRoutingSetupPage();
+  return true;
+}
+
+bool ConfigServer::HandleEditDMXRouting() {
+  int index = -1;
+
+  for (int i = 0; i < m_ptr_WebServer->args(); i++) {
+    if (m_ptr_WebServer->argName(i) == "index") {
+      index = m_ptr_WebServer->arg(i).toInt();
+    }
+  }
+
+  if (index >= 0 && index < m_dmx_routing_configs.size()) {
+    const auto& config = m_dmx_routing_configs[index];
+
+    m_WebpageBuilder.StartPage();
+    m_WebpageBuilder.AddTitle("Edit DMX Routing Configuration");
+    m_WebpageBuilder.StartBody();
+    m_WebpageBuilder.StartCenter();
+    m_WebpageBuilder.AddHeading("Edit DMX Routing Configuration");
+
+    m_WebpageBuilder.AddFormAction("/update_dmx_routing", "POST");
+    m_WebpageBuilder.AddLabel("input_channel", "Input DMX Channel:");
+    m_WebpageBuilder.AddInputType("number", "input_channel", "input_channel", String(config.input_channel), "", true);
+    m_WebpageBuilder.AddBreak(2);
+    m_WebpageBuilder.AddLabel("output_channels", "Output DMX Channels (comma-separated):");
+    String output_channels_str;
+    for (size_t j = 0; j < config.output_channels.size(); ++j) {
+      output_channels_str += String(config.output_channels[j]);
+      if (j < config.output_channels.size() - 1) {
+        output_channels_str += ",";
+      }
+    }
+    m_WebpageBuilder.AddInputType("text", "output_channels", "output_channels", output_channels_str, "", true);
+    m_WebpageBuilder.AddBreak(2);
+    m_WebpageBuilder.AddInputType("hidden", "index", "index", String(index), "", false);
+    m_WebpageBuilder.AddBreak(3);
+
+    m_WebpageBuilder.AddButton("submit", "UPDATE");
+    m_WebpageBuilder.EndFormAction();
+    m_WebpageBuilder.AddBreak(3);
+    m_WebpageBuilder.AddButtonActionForm("/", "CANCEL");
+
+    m_WebpageBuilder.EndCenter();
+    m_WebpageBuilder.EndBody();
+    m_WebpageBuilder.EndPage();
+
+    m_ptr_WebServer->send(200, "text/html", m_WebpageBuilder.m_html);
+    return true;
+  }
+
+  return false;
+}
+
+bool ConfigServer::HandleDeleteDMXRouting() {
+  int index = -1;
+
+  for (int i = 0; i < m_ptr_WebServer->args(); i++) {
+    if (m_ptr_WebServer->argName(i) == "index") {
+      index = m_ptr_WebServer->arg(i).toInt();
+    }
+  }
+
+  if (index >= 0 && index < m_dmx_routing_configs.size()) {
+    m_dmx_routing_configs.erase(m_dmx_routing_configs.begin() + index);
+    SaveDMXRoutingConfigs();
+    SendDMXRoutingSetupPage();
+    return true;
+  }
+
+  return false;
+}
+
+bool ConfigServer::HandleUpdateDMXRouting() {
+  int index = -1;
+  uint8_t input_channel = 0;
+  std::vector<uint8_t> output_channels;
+
+  for (int i = 0; i < m_ptr_WebServer->args(); i++) {
+    if (m_ptr_WebServer->argName(i) == "index") {
+      index = m_ptr_WebServer->arg(i).toInt();
+    } else if (m_ptr_WebServer->argName(i) == "input_channel") {
+      input_channel = m_ptr_WebServer->arg(i).toInt();
+    } else if (m_ptr_WebServer->argName(i) == "output_channels") {
+      String output_channels_str = m_ptr_WebServer->arg(i);
+      int start = 0;
+      int end = output_channels_str.indexOf(',');
+      while (end != -1) {
+        output_channels.push_back(output_channels_str.substring(start, end).toInt());
+        start = end + 1;
+        end = output_channels_str.indexOf(',', start);
+      }
+      output_channels.push_back(output_channels_str.substring(start).toInt());
+    }
+  }
+
+  if (index >= 0 && index < m_dmx_routing_configs.size()) {
+    m_dmx_routing_configs[index].input_channel = input_channel;
+    m_dmx_routing_configs[index].output_channels = output_channels;
+    SaveDMXRoutingConfigs();
+    SendDMXRoutingSetupPage();
+    return true;
+  }
+
+  return false;
+}
+
+
+bool ConfigServer::HandleWebGet() {
+  if (m_ptr_WebServer->uri() == "/settings_wifi") {
     this->SendWiFiSetupPage();
-  } else if( m_ptr_WebServer->uri() == "/settings_esp32pins" ) {
+  } else if (m_ptr_WebServer->uri() == "/settings_esp32pins") {
     this->SendESP32PinsSetupPage();
-  } else if( m_ptr_WebServer->uri() == "/settings_artnet2dmx" ) {
+  } else if (m_ptr_WebServer->uri() == "/settings_artnet2dmx") {
     this->SendArtnet2DMXSetupPage();
+  } else if (m_ptr_WebServer->uri() == "/settings_dmx_routing") {
+    this->SendDMXRoutingSetupPage();
   } else {
-    // Always send setup page.  
     this->SendSetupMenuPage();
   }
-  
+
   return true;
 }
 
 bool ConfigServer::HandleWebPost() {
-  
-  if( m_ptr_WebServer->uri() == "/setup_wifi" ) {
-    if( this->HandleSetupWiFi() ) {
-      Serial.printf( "Restarting WiFi\n" );
+  if (m_ptr_WebServer->uri() == "/setup_wifi") {
+    if (this->HandleSetupWiFi()) {
+      Serial.printf("Restarting WiFi\n");
       this->ConnectToWiFi();
       return true;
     }
-  } else if( m_ptr_WebServer->uri() == "/setup_esp32pins" ) {
+  } else if (m_ptr_WebServer->uri() == "/setup_esp32pins") {
     this->HandleSetupESP32Pins();
     this->SendSetupMenuPage();
     return true;
-  } else if( m_ptr_WebServer->uri() == "/setup_artnet2dmx" ) {
+  } else if (m_ptr_WebServer->uri() == "/setup_artnet2dmx") {
     this->HandleSetupArtnet2DMX();
     this->SendSetupMenuPage();
     return true;
+  } else if (m_ptr_WebServer->uri() == "/setup_dmx_routing") {
+    this->HandleSetupDMXRouting();
+    return true;
+  } else if (m_ptr_WebServer->uri() == "/edit_dmx_routing") {
+    this->HandleEditDMXRouting();
+    return true;
+  } else if (m_ptr_WebServer->uri() == "/delete_dmx_routing") {
+    this->HandleDeleteDMXRouting();
+    return true;
+  } else if (m_ptr_WebServer->uri() == "/update_dmx_routing") {
+    this->HandleUpdateDMXRouting();
+    return true;
   }
-  
+
   return false;
 }
+
 
 bool ConfigServer::HandleSetupWiFi() {  
   String wifi_ssid_new   = "";
@@ -503,4 +641,44 @@ bool ConfigServer::HandleSetupArtnet2DMX() {
   this->SettingsSave();
 
   return true;
+}
+
+void ConfigServer::HandleWebServerData() {
+  bool handled = false;
+  
+  if( m_ptr_WebServer->uri() == String( "/reset_all" ) ) {
+    m_ptr_WebServer->send( 200, "text/plain", "Resetting everything to defaults - Reconnect to hotspot to setup WiFi." );
+    delay( 2000 );
+    this->ResetConfigToDefault();
+    this->SettingsSave();
+    this->ConnectToWiFi();
+    return;
+  } else if( m_ptr_WebServer->uri() == String( "/reset_wifi" ) ) {
+    m_ptr_WebServer->send( 200, "text/plain", "Resetting to WiFi defaults - Reconnect to hotspot to setup WiFi." );
+    delay( 2000 );
+    this->ResetWiFiToDefault();
+    this->SettingsSave();
+    this->ConnectToWiFi();
+    return;
+  } else if( m_ptr_WebServer->uri() == String( "/reset_esp32pins" ) ) {
+    this->ResetESP32PinsToDefault();
+    this->SettingsSave();
+    this->SendESP32PinsSetupPage();
+    return;
+  } else if( m_ptr_WebServer->uri() == String( "/reset_artnew2dmx" ) ) {
+    this->ResetArtnet2DMXToDefault();
+    this->SettingsSave();
+    this->SendArtnet2DMXSetupPage();
+    return;
+  }
+
+  if( m_ptr_WebServer->method() == HTTP_GET ) {
+    handled = this->HandleWebGet();
+  } else {
+    handled = this->HandleWebPost();
+  }
+
+  if( !handled ) {
+    m_ptr_WebServer->send( 200, "text/plain", "Not found!" );
+  }
 }

@@ -13,6 +13,11 @@ const String HOTSPOT_PASS = "1234567890";  // Has to be minimum 10 digits?
 
 const String CONFIG_FILENAME = "/config.json";
 
+struct DMXRoutingConfig {
+  uint8_t input_channel;
+  std::vector<uint8_t> output_channels;
+};
+
 class ConfigServer {
 public:
   ConfigServer();
@@ -21,34 +26,41 @@ public:
   
   void Init();
 
-  // Returns true if connected to WiFi, false if gone into WiFi setup AP.
   bool ConnectToWiFi();
   
   bool IsConnectedToWiFi();
 
-  void StartWebServer( WebServer* ptr_WebServer );
+  void StartWebServer(WebServer* ptr_WebServer);
 
-  // Returns true if settings have changed.
   bool Update();
   
   void HandleWebServerData();
 
-  // WiFi settings
   String m_wifi_ssid;
   String m_wifi_pass;
   String m_wifi_ip;
   String m_wifi_subnet;
 
-  // ESP32 settings
-  int m_gpio_enable;       // Connect to DE & RE on MAX485.  Default = 21
-  int m_gpio_transmit;     // Connected to DI on MAX485.  Default = 33
-  int m_gpio_receive;      // Ensure pin is not connected to anything.  Default = 38
+  int m_gpio_enable;
+  int m_gpio_transmit;
+  int m_gpio_receive;
 
-  // Artnet 2 DMX settings
-  String          m_artnet_source_ip;        // The IP that we're expecting data from.  Use 255.255.255.255 for any.
-  int             m_artnet_universe;         // Universe to listen for, all other universes are ignored.  Default = 1
-  unsigned long   m_artnet_timeout_ms;       // When no artnet data has been received by this amount of ms then turn off all dmx.  Default = 2000.  Use -1 for no timeout.
-  unsigned long   m_dmx_update_interval_ms;  // The interval between updating the dmx line in ms.  Default = 23
+  String m_artnet_source_ip;
+  int m_artnet_universe;
+  unsigned long m_artnet_timeout_ms;
+  unsigned long m_dmx_update_interval_ms;
+
+  std::vector<DMXRoutingConfig> m_dmx_routing_configs;
+
+  void LoadDMXRoutingConfigs();
+  void SaveDMXRoutingConfigs();
+  void AddDMXRoutingConfig(uint8_t input_channel, const std::vector<uint8_t>& output_channels);
+  void ClearDMXRoutingConfigs();
+
+  // New functions for edit and delete functionality
+  bool HandleEditDMXRouting();
+  bool HandleDeleteDMXRouting();
+  bool HandleUpdateDMXRouting();
 
 private:
   void ResetConfigToDefault();
@@ -58,11 +70,12 @@ private:
 
   void SettingsSave();
   bool SettingsLoad();
-  
+
   void SendSetupMenuPage();
   void SendWiFiSetupPage();
   void SendESP32PinsSetupPage();
   void SendArtnet2DMXSetupPage();
+  void SendDMXRoutingSetupPage();
 
   bool HandleWebGet();
   bool HandleWebPost();
@@ -70,10 +83,11 @@ private:
   bool HandleSetupWiFi();
   bool HandleSetupESP32Pins();
   bool HandleSetupArtnet2DMX();
+  bool HandleSetupDMXRouting();
 
-  WebServer*     m_ptr_WebServer;
+  WebServer* m_ptr_WebServer;
   WebpageBuilder m_WebpageBuilder;
-  
+
   bool m_settings_changed;
   bool m_is_connected_to_wifi;
 };
