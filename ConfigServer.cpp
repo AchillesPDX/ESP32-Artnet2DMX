@@ -589,6 +589,7 @@ bool ConfigServer::HandleUpdateDMXRouting() {
 
 bool ConfigServer::HandleWebGet() {
   // Get starts with a /
+
   if( m_ptr_WebServer->uri() == "/settings_wifi" ) {
     this->SendWiFiSetupPage();
   } else if( m_ptr_WebServer->uri() == "/settings_esp32pins" ) {
@@ -606,17 +607,18 @@ bool ConfigServer::HandleWebGet() {
 }
 
 bool ConfigServer::HandleWebPost() {
+
   if( m_ptr_WebServer->uri() == "/setup_wifi" ) {
     if( this->HandleSetupWiFi() ) {
       Serial.printf( "Restarting WiFi\n" );
       this->ConnectToWiFi();
       return true;
     }
-  } else if ( m_ptr_WebServer->uri() == "/setup_esp32pins" ) {
+  } else if( m_ptr_WebServer->uri() == "/setup_esp32pins" ) {
     this->HandleSetupESP32Pins();
     this->SendSetupMenuPage();
     return true;
-  } else if ( m_ptr_WebServer->uri() == "/setup_artnet2dmx" ) {
+  } else if( m_ptr_WebServer->uri() == "/setup_artnet2dmx" ) {
     this->HandleSetupArtnet2DMX();
     this->SendSetupMenuPage();
     return true;
@@ -633,10 +635,9 @@ bool ConfigServer::HandleWebPost() {
     this->HandleUpdateDMXRouting();
     return true;
   }
-
+  
   return false;
 }
-
 
 bool ConfigServer::HandleSetupWiFi() {  
   String wifi_ssid_new   = "";
@@ -710,4 +711,3 @@ bool ConfigServer::HandleSetupArtnet2DMX() {
 
   return true;
 }
-
