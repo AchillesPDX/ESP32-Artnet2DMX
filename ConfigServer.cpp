@@ -156,12 +156,12 @@ void ConfigServer::AddDMXRoutingConfig(uint8_t input_channel, const std::vector<
   config.input_channel = input_channel;
   config.output_channels = output_channels;
   m_dmx_routing_configs.push_back(config);
-  SettingsSave;
+  SettingsSave();
 }
 
 void ConfigServer::ClearDMXRoutingConfigs() {
   m_dmx_routing_configs.clear();
-  SettingsSave;
+  SettingsSave();
 }
 
 void ConfigServer::StartWebServer( WebServer* ptr_WebServer ) {
@@ -537,7 +537,7 @@ bool ConfigServer::HandleDeleteDMXRouting() {
 
   if (index >= 0 && index < m_dmx_routing_configs.size()) {
     m_dmx_routing_configs.erase(m_dmx_routing_configs.begin() + index);
-    SettingsSave;
+    SettingsSave();
     SendDMXRoutingSetupPage();
     return true;
   }
@@ -571,7 +571,7 @@ bool ConfigServer::HandleUpdateDMXRouting() {
   if (index >= 0 && index < m_dmx_routing_configs.size()) {
     m_dmx_routing_configs[index].input_channel = input_channel;
     m_dmx_routing_configs[index].output_channels = output_channels;
-    SettingsSave;
+    SettingsSave();
     SendDMXRoutingSetupPage();
     return true;
   }
