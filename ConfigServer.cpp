@@ -17,6 +17,7 @@ void ConfigServer::Init() {
 }
 
 void ConfigServer::ResetConfigToDefault() {
+  // Remove existing settings file.
   if( LittleFS.begin( false ) ) {
     LittleFS.remove( CONFIG_FILENAME );
   }
