@@ -68,7 +68,6 @@ void ConfigServer::SettingsSave() {
 
   // Start LittleFS
   if( !LittleFS.begin( false ) ) {
-    // Failed to start LittleFS, probably no save.
     Serial.println( "LittleFS failed.  Attempting format." );
     if( !LittleFS.begin( true ) ) {
       Serial.println( "LittleFS failed format. Config saving aborted." );
@@ -87,6 +86,7 @@ void ConfigServer::SettingsSave() {
 
 bool ConfigServer::SettingsLoad() {
   if( !LittleFS.begin( false ) ) {
+    // Failed to start LittleFS, probably no save.	  
     Serial.println( "Failed to start LittleFS" );
     return false;
   }
@@ -209,7 +209,7 @@ bool ConfigServer::ConnectToWiFi() {
       return true;
     }
   }
-  
+
   // Ensure any old wifi ssid gets removed.
   m_wifi_ssid = "";
 
@@ -283,6 +283,7 @@ void ConfigServer::SendWiFiSetupPage() {
   m_WebpageBuilder.StartCenter();
   m_WebpageBuilder.AddHeading( "WiFi Setup" );
 
+  // WiFi settings
   m_WebpageBuilder.AddText( mac_address );
   m_WebpageBuilder.AddBreak( 2 );
   m_WebpageBuilder.AddFormAction( "/setup_wifi", "POST" );
@@ -298,7 +299,7 @@ void ConfigServer::SendWiFiSetupPage() {
   m_WebpageBuilder.AddLabel( "subnet", "Subnet (Leave blank if DHCP assigned) : " );
   m_WebpageBuilder.AddInputType( "text", "subnet", "subnet", "", String( "xxx.xxx.xxx.xxx" ), false );
   m_WebpageBuilder.AddBreak( 3 );
-  
+
   // Submit button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButton( "submit", "SUBMIT" );
@@ -409,10 +410,12 @@ void ConfigServer::SendArtnet2DMXSetupPage() {
 
 void ConfigServer::HandleWebServerData() {
   bool handled = false;
-  
+
+  // Allow reset before anything else.
   if( m_ptr_WebServer->uri() == String( "/reset_all" ) ) {
     m_ptr_WebServer->send( 200, "text/plain", "Resetting everything to defaults - Reconnect to hotspot to setup WiFi." );
     delay( 2000 );
+    // Maybe wipe FS here?
     this->ResetConfigToDefault();
     this->SettingsSave();
     this->ConnectToWiFi();
@@ -437,8 +440,10 @@ void ConfigServer::HandleWebServerData() {
   }
 
   if( m_ptr_WebServer->method() == HTTP_GET ) {
+    // GET
     handled = this->HandleWebGet();
   } else {
+    // POST
     handled = this->HandleWebPost();
   }
 
