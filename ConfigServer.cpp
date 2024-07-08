@@ -22,6 +22,7 @@ void ConfigServer::ResetConfigToDefault() {
     LittleFS.remove( CONFIG_FILENAME );
   }
 
+  // Reset all config
   this->ResetWiFiToDefault();
   this->ResetESP32PinsToDefault();
   this->ResetArtnet2DMXToDefault();
@@ -30,6 +31,7 @@ void ConfigServer::ResetConfigToDefault() {
 void ConfigServer::ResetWiFiToDefault() {
   m_is_connected_to_wifi = false;
 
+  // No wifi setup on default, force AP
   m_wifi_ssid   = "";
   m_wifi_pass   = "";
   m_wifi_ip     = "";
@@ -37,16 +39,17 @@ void ConfigServer::ResetWiFiToDefault() {
 }
 
 void ConfigServer::ResetESP32PinsToDefault() {
-  m_gpio_enable      = 21;
-  m_gpio_transmit    = 33;
-  m_gpio_receive     = 38;
+  // DMX settings
+  m_gpio_enable      = 21;  // Connect to DE & RE on MAX485.
+  m_gpio_transmit    = 33;  // Connected to DI on MAX485.
+  m_gpio_receive     = 38;  // Ensure pin is not connected to anything.
 }
 
 void ConfigServer::ResetArtnet2DMXToDefault() {
-  m_artnet_source_ip       = "255.255.255.255";
-  m_artnet_universe        = 1;
-  m_artnet_timeout_ms      = 3000;
-  m_dmx_update_interval_ms = 23;
+  m_artnet_source_ip       = "255.255.255.255";  // Any IP source is fine.
+  m_artnet_universe        = 1;                  // Universe to listen for, all other universes are ignored.
+  m_artnet_timeout_ms      = 3000;               // Artnet timeout
+  m_dmx_update_interval_ms = 23;                 // Roughly 4hz
 }
 
 void ConfigServer::SettingsSave() {
@@ -63,7 +66,9 @@ void ConfigServer::SettingsSave() {
   doc[ "artnet_timeout_ms" ]      = m_artnet_timeout_ms;
   doc[ "dmx_update_interval_ms" ] = m_dmx_update_interval_ms;
 
+  // Start LittleFS
   if( !LittleFS.begin( false ) ) {
+    // Failed to start LittleFS, probably no save.
     Serial.println( "LittleFS failed.  Attempting format." );
     if( !LittleFS.begin( true ) ) {
       Serial.println( "LittleFS failed format. Config saving aborted." );
@@ -90,6 +95,7 @@ bool ConfigServer::SettingsLoad() {
   File config_file = LittleFS.open( CONFIG_FILENAME, "r" );
 
   if( !config_file ) {
+    // File not exist.
     Serial.println( "Failed to load file" );
     return false;
   }
@@ -197,13 +203,14 @@ bool ConfigServer::ConnectToWiFi() {
 
         WiFi.config( ip, ip, subnet );
       }
-      Serial.printf( "\\nConnected to WiFi. IP = " );
+      Serial.printf( "\nConnected to WiFi. IP = " );
       Serial.println( WiFi.localIP() );
       m_is_connected_to_wifi = true;
       return true;
     }
   }
-
+  
+  // Ensure any old wifi ssid gets removed.
   m_wifi_ssid = "";
 
   Serial.println( "No config found or WiFi timeout." );
@@ -244,16 +251,19 @@ void ConfigServer::SendSetupMenuPage() {
   m_WebpageBuilder.StartCenter();
   m_WebpageBuilder.AddHeading( "Artnet2DMX Setup Page" );
 
+  // WiFi settings
   m_WebpageBuilder.AddBreak( 2 );
   m_WebpageBuilder.AddButtonActionForm( "settings_wifi", "WiFi" );
   m_WebpageBuilder.AddBreak( 2 );
   m_WebpageBuilder.AddButtonActionForm( "settings_esp32pins", "ESP32 Pins" );
   m_WebpageBuilder.AddBreak( 2 );
   m_WebpageBuilder.AddButtonActionForm( "settings_artnet2dmx", "Art-Net 2 DMX" );
-
+  
+  // DMX Routing
   m_WebpageBuilder.AddBreak( 2 );
   m_WebpageBuilder.AddButtonActionForm( "settings_dmx_routing", "DMX Routing" );
 
+  // Reset button
   m_WebpageBuilder.AddBreak( 2 );
   m_WebpageBuilder.AddButtonActionForm( "reset_all", "RESET ALL SETTINGS TO DEFAULT" );
 
@@ -288,14 +298,17 @@ void ConfigServer::SendWiFiSetupPage() {
   m_WebpageBuilder.AddLabel( "subnet", "Subnet (Leave blank if DHCP assigned) : " );
   m_WebpageBuilder.AddInputType( "text", "subnet", "subnet", "", String( "xxx.xxx.xxx.xxx" ), false );
   m_WebpageBuilder.AddBreak( 3 );
-
+  
+  // Submit button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButton( "submit", "SUBMIT" );
   m_WebpageBuilder.EndFormAction();
 
+  // Cancel button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButtonActionForm( "/", "CANCEL" );
 
+  // Reset button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButtonActionForm( "reset_wifi", "RESET WiFi BACK TO HOTSPOT" );
 
@@ -315,6 +328,7 @@ void ConfigServer::SendESP32PinsSetupPage() {
   m_WebpageBuilder.StartCenter();
   m_WebpageBuilder.AddHeading( "ESP32 Pin Setup" );
 
+  // ESP32 & Art-Net settings
   m_WebpageBuilder.AddFormAction( "/setup_esp32pins", "POST" );
   m_WebpageBuilder.AddLabel( "gpio_enable", "GPIO - Enable : Connnect to DE & RE on MAX485." );
   m_WebpageBuilder.AddBreak( 1 );
@@ -328,13 +342,16 @@ void ConfigServer::SendESP32PinsSetupPage() {
   m_WebpageBuilder.AddBreak( 1 );
   m_WebpageBuilder.AddInputType( "number", "GPIO Receive", "gpio_receive", String( m_gpio_receive ), "", true );
 
+  // Submit button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButton( "submit", "SUBMIT" );
   m_WebpageBuilder.EndFormAction();
 
+  // Cancel button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButtonActionForm( "/", "CANCEL" );
 
+  // Reset button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButtonActionForm( "reset_esp32pins", "RESET ALL ESP32 PINS TO DEFAULT" );
 
@@ -370,13 +387,16 @@ void ConfigServer::SendArtnet2DMXSetupPage() {
   m_WebpageBuilder.AddBreak( 1 );
   m_WebpageBuilder.AddInputType( "number", "DMX update interval in ms", "dmx_update_ms", String( m_dmx_update_interval_ms ), "", true );
 
+  // Submit button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButton( "submit", "SUBMIT" );
   m_WebpageBuilder.EndFormAction();
 
+  // Cancel button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButtonActionForm( "/", "CANCEL" );
 
+  // Reset button
   m_WebpageBuilder.AddBreak( 3 );
   m_WebpageBuilder.AddButtonActionForm( "reset_artnew2dmx", "RESET ALL ART-NET TO DMX SETTINGS TO DEFAULT" );
 
@@ -385,6 +405,46 @@ void ConfigServer::SendArtnet2DMXSetupPage() {
   m_WebpageBuilder.EndPage();
 
   m_ptr_WebServer->send( 200, "text/html", m_WebpageBuilder.m_html );
+}
+
+void ConfigServer::HandleWebServerData() {
+  bool handled = false;
+  
+  if( m_ptr_WebServer->uri() == String( "/reset_all" ) ) {
+    m_ptr_WebServer->send( 200, "text/plain", "Resetting everything to defaults - Reconnect to hotspot to setup WiFi." );
+    delay( 2000 );
+    this->ResetConfigToDefault();
+    this->SettingsSave();
+    this->ConnectToWiFi();
+    return;
+  } else if( m_ptr_WebServer->uri() == String( "/reset_wifi" ) ) {
+    m_ptr_WebServer->send( 200, "text/plain", "Resetting to WiFi defaults - Reconnect to hotspot to setup WiFi." );
+    delay( 2000 );
+    this->ResetWiFiToDefault();
+    this->SettingsSave();
+    this->ConnectToWiFi();
+    return;
+  } else if( m_ptr_WebServer->uri() == String( "/reset_esp32pins" ) ) {
+    this->ResetESP32PinsToDefault();
+    this->SettingsSave();
+    this->SendESP32PinsSetupPage();
+    return;
+  } else if( m_ptr_WebServer->uri() == String( "/reset_artnew2dmx" ) ) {
+    this->ResetArtnet2DMXToDefault();
+    this->SettingsSave();
+    this->SendArtnet2DMXSetupPage();
+    return;
+  }
+
+  if( m_ptr_WebServer->method() == HTTP_GET ) {
+    handled = this->HandleWebGet();
+  } else {
+    handled = this->HandleWebPost();
+  }
+
+  if( !handled ) {
+    m_ptr_WebServer->send( 200, "text/plain", "Not found!" );
+  }
 }
 
 void ConfigServer::SendDMXRoutingSetupPage() {
@@ -523,15 +583,17 @@ bool ConfigServer::HandleUpdateDMXRouting() {
 
 
 bool ConfigServer::HandleWebGet() {
-  if (m_ptr_WebServer->uri() == "/settings_wifi") {
+  // Get starts with a /
+  if ( m_ptr_WebServer->uri() == "/settings_wifi" ) {
     this->SendWiFiSetupPage();
-  } else if (m_ptr_WebServer->uri() == "/settings_esp32pins") {
+  } else if ( m_ptr_WebServer->uri() == "/settings_esp32pins" ) {
     this->SendESP32PinsSetupPage();
-  } else if (m_ptr_WebServer->uri() == "/settings_artnet2dmx") {
+  } else if ( m_ptr_WebServer->uri() == "/settings_artnet2dmx" ) {
     this->SendArtnet2DMXSetupPage();
-  } else if (m_ptr_WebServer->uri() == "/settings_dmx_routing") {
+  } else if ( m_ptr_WebServer->uri() == "/settings_dmx_routing" ) {
     this->SendDMXRoutingSetupPage();
   } else {
+    // Always send setup page.  
     this->SendSetupMenuPage();
   }
 
@@ -539,30 +601,30 @@ bool ConfigServer::HandleWebGet() {
 }
 
 bool ConfigServer::HandleWebPost() {
-  if (m_ptr_WebServer->uri() == "/setup_wifi") {
+  if ( m_ptr_WebServer->uri() == "/setup_wifi" ) {
     if (this->HandleSetupWiFi()) {
-      Serial.printf("Restarting WiFi\n");
+      Serial.printf( "Restarting WiFi\n" );
       this->ConnectToWiFi();
       return true;
     }
-  } else if (m_ptr_WebServer->uri() == "/setup_esp32pins") {
+  } else if ( m_ptr_WebServer->uri() == "/setup_esp32pins" ) {
     this->HandleSetupESP32Pins();
     this->SendSetupMenuPage();
     return true;
-  } else if (m_ptr_WebServer->uri() == "/setup_artnet2dmx") {
+  } else if ( m_ptr_WebServer->uri() == "/setup_artnet2dmx" ) {
     this->HandleSetupArtnet2DMX();
     this->SendSetupMenuPage();
     return true;
-  } else if (m_ptr_WebServer->uri() == "/setup_dmx_routing") {
+  } else if ( m_ptr_WebServer->uri() == "/setup_dmx_routing" ) {
     this->HandleSetupDMXRouting();
     return true;
-  } else if (m_ptr_WebServer->uri() == "/edit_dmx_routing") {
+  } else if ( m_ptr_WebServer->uri() == "/edit_dmx_routing" ) {
     this->HandleEditDMXRouting();
     return true;
-  } else if (m_ptr_WebServer->uri() == "/delete_dmx_routing") {
+  } else if ( m_ptr_WebServer->uri() == "/delete_dmx_routing" ) {
     this->HandleDeleteDMXRouting();
     return true;
-  } else if (m_ptr_WebServer->uri() == "/update_dmx_routing") {
+  } else if ( m_ptr_WebServer->uri() == "/update_dmx_routing" ) {
     this->HandleUpdateDMXRouting();
     return true;
   }
@@ -644,42 +706,3 @@ bool ConfigServer::HandleSetupArtnet2DMX() {
   return true;
 }
 
-void ConfigServer::HandleWebServerData() {
-  bool handled = false;
-  
-  if( m_ptr_WebServer->uri() == String( "/reset_all" ) ) {
-    m_ptr_WebServer->send( 200, "text/plain", "Resetting everything to defaults - Reconnect to hotspot to setup WiFi." );
-    delay( 2000 );
-    this->ResetConfigToDefault();
-    this->SettingsSave();
-    this->ConnectToWiFi();
-    return;
-  } else if( m_ptr_WebServer->uri() == String( "/reset_wifi" ) ) {
-    m_ptr_WebServer->send( 200, "text/plain", "Resetting to WiFi defaults - Reconnect to hotspot to setup WiFi." );
-    delay( 2000 );
-    this->ResetWiFiToDefault();
-    this->SettingsSave();
-    this->ConnectToWiFi();
-    return;
-  } else if( m_ptr_WebServer->uri() == String( "/reset_esp32pins" ) ) {
-    this->ResetESP32PinsToDefault();
-    this->SettingsSave();
-    this->SendESP32PinsSetupPage();
-    return;
-  } else if( m_ptr_WebServer->uri() == String( "/reset_artnew2dmx" ) ) {
-    this->ResetArtnet2DMXToDefault();
-    this->SettingsSave();
-    this->SendArtnet2DMXSetupPage();
-    return;
-  }
-
-  if( m_ptr_WebServer->method() == HTTP_GET ) {
-    handled = this->HandleWebGet();
-  } else {
-    handled = this->HandleWebPost();
-  }
-
-  if( !handled ) {
-    m_ptr_WebServer->send( 200, "text/plain", "Not found!" );
-  }
-}
