@@ -607,7 +607,7 @@ bool ConfigServer::HandleWebGet() {
 }
 
 bool ConfigServer::HandleWebPost() {
-
+  
   if( m_ptr_WebServer->uri() == "/setup_wifi" ) {
     if( this->HandleSetupWiFi() ) {
       Serial.printf( "Restarting WiFi\n" );
