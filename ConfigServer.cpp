@@ -86,7 +86,7 @@ void ConfigServer::SettingsSave() {
 
 bool ConfigServer::SettingsLoad() {
   if( !LittleFS.begin( false ) ) {
-    // Failed to start LittleFS, probably no save.	  
+    // Failed to start LittleFS, probably no save.
     Serial.println( "Failed to start LittleFS" );
     return false;
   }
@@ -410,7 +410,7 @@ void ConfigServer::SendArtnet2DMXSetupPage() {
 
 void ConfigServer::HandleWebServerData() {
   bool handled = false;
-
+  
   // Allow reset before anything else.
   if( m_ptr_WebServer->uri() == String( "/reset_all" ) ) {
     m_ptr_WebServer->send( 200, "text/plain", "Resetting everything to defaults - Reconnect to hotspot to setup WiFi." );
@@ -589,25 +589,25 @@ bool ConfigServer::HandleUpdateDMXRouting() {
 
 bool ConfigServer::HandleWebGet() {
   // Get starts with a /
-  if ( m_ptr_WebServer->uri() == "/settings_wifi" ) {
+  if( m_ptr_WebServer->uri() == "/settings_wifi" ) {
     this->SendWiFiSetupPage();
-  } else if ( m_ptr_WebServer->uri() == "/settings_esp32pins" ) {
+  } else if( m_ptr_WebServer->uri() == "/settings_esp32pins" ) {
     this->SendESP32PinsSetupPage();
-  } else if ( m_ptr_WebServer->uri() == "/settings_artnet2dmx" ) {
+  } else if( m_ptr_WebServer->uri() == "/settings_artnet2dmx" ) {
     this->SendArtnet2DMXSetupPage();
-  } else if ( m_ptr_WebServer->uri() == "/settings_dmx_routing" ) {
+  } else if( m_ptr_WebServer->uri() == "/settings_dmx_routing" ) {
     this->SendDMXRoutingSetupPage();
   } else {
     // Always send setup page.  
     this->SendSetupMenuPage();
   }
-
+  
   return true;
 }
 
 bool ConfigServer::HandleWebPost() {
-  if ( m_ptr_WebServer->uri() == "/setup_wifi" ) {
-    if (this->HandleSetupWiFi()) {
+  if( m_ptr_WebServer->uri() == "/setup_wifi" ) {
+    if( this->HandleSetupWiFi() ) {
       Serial.printf( "Restarting WiFi\n" );
       this->ConnectToWiFi();
       return true;
