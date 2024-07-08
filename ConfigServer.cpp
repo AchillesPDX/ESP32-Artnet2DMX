@@ -77,6 +77,17 @@ void ConfigServer::SettingsSave() {
     }
   }
 
+  JsonArray routing_configs = doc.createNestedArray("dmx_routing_configs");
+
+  for (const DMXRoutingConfig& config : m_dmx_routing_configs) {
+    JsonObject routing_config = routing_configs.createNestedObject();
+    routing_config["input_channel"] = config.input_channel;
+    JsonArray output_channels = routing_config.createNestedArray("output_channels");
+    for (uint8_t output_channel : config.output_channels) {
+      output_channels.add(output_channel);
+    }
+  }
+
   File config_file = LittleFS.open( CONFIG_FILENAME, "w" );
   serializeJson( doc, config_file );
   config_file.close();
@@ -140,35 +151,17 @@ void ConfigServer::LoadDMXRoutingConfigs() {
   }
 }
 
-void ConfigServer::SaveDMXRoutingConfigs() {
-  DynamicJsonDocument doc(32768);
-  JsonArray routing_configs = doc.createNestedArray("dmx_routing_configs");
-
-  for (const DMXRoutingConfig& config : m_dmx_routing_configs) {
-    JsonObject routing_config = routing_configs.createNestedObject();
-    routing_config["input_channel"] = config.input_channel;
-    JsonArray output_channels = routing_config.createNestedArray("output_channels");
-    for (uint8_t output_channel : config.output_channels) {
-      output_channels.add(output_channel);
-    }
-  }
-
-  File config_file = LittleFS.open(CONFIG_FILENAME, "w");
-  serializeJson(doc, config_file);
-  config_file.close();
-}
-
 void ConfigServer::AddDMXRoutingConfig(uint8_t input_channel, const std::vector<uint8_t>& output_channels) {
   DMXRoutingConfig config;
   config.input_channel = input_channel;
   config.output_channels = output_channels;
   m_dmx_routing_configs.push_back(config);
-  SaveDMXRoutingConfigs();
+  SettingsSave;
 }
 
 void ConfigServer::ClearDMXRoutingConfigs() {
   m_dmx_routing_configs.clear();
-  SaveDMXRoutingConfigs();
+  SettingsSave;
 }
 
 void ConfigServer::StartWebServer( WebServer* ptr_WebServer ) {
@@ -544,7 +537,7 @@ bool ConfigServer::HandleDeleteDMXRouting() {
 
   if (index >= 0 && index < m_dmx_routing_configs.size()) {
     m_dmx_routing_configs.erase(m_dmx_routing_configs.begin() + index);
-    SaveDMXRoutingConfigs();
+    SettingsSave;
     SendDMXRoutingSetupPage();
     return true;
   }
@@ -578,7 +571,7 @@ bool ConfigServer::HandleUpdateDMXRouting() {
   if (index >= 0 && index < m_dmx_routing_configs.size()) {
     m_dmx_routing_configs[index].input_channel = input_channel;
     m_dmx_routing_configs[index].output_channels = output_channels;
-    SaveDMXRoutingConfigs();
+    SettingsSave;
     SendDMXRoutingSetupPage();
     return true;
   }
